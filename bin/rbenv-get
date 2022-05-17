@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#
+# Summary: Install versions that can be specified using short format
+#
+# Usage: rbenv get [options] [v1 v2...]
+#
+# Every version will be expanded using whatis and installed using ruby-build.
+#
+# Options:
+#    -f, --force          Install even if the version appears to be installed already
+#    -s, --skip-existing  Skip if the version appears to be installed already
+#    -k, --keep           Keep source tree in $RBENV_BUILD_ROOT after installation
+#                         (defaults to $RBENV_ROOT/sources)
+#    -h, --help           Print this help message
+
+set -e
+[ -n "$RBENV_DEBUG" ] && set -x
+
+if ! type rbenv-whatis &>/dev/null; then
+  echo "rbenv-whatis plugin not installed, please run:" >&2
+  echo -e "\n\tgit clone https://github.com/toy/rbenv-whatis.git $RBENV_ROOT/plugins/whatis\n" >&2
+  exit 1
+fi
+
+# Provide rbenv completions
+if [ "$1" = "--complete" ]; then
+  rbenv-install --list-all | fgrep -v 'Available versions:'
+  exit
+fi
+
+usage() {
+  rbenv-help --usage get >&2
+  exit 1
+}
+
+args=()
+while true; do
+  case "$1" in
+  "-f" | "--force" | \
+  "-s" | "--skip-existing" | \
+  "-k" | "--keep" )
+    args+=($1)
+    shift
+    ;;
+  -* )
+    echo "Unknown option $option" >&2
+    usage
+    ;;
+  * )
+    break
+    ;;
+  esac
+done
+
+if [[ $# -eq 0 ]]; then
+  echo "Specify versions to install" >&2
+  usage
+fi
+
+versions="$(for v in "$@"; do rbenv-whatis "$v"; done)"
+
+installable="$(rbenv-install --list-all | fgrep -v 'Available versions:')"
+
+for version in $versions; do
+  if ! [[ "$installable" =~ (^|[[:space:]])"$version"($|[[:space:]]) ]]; then
+    echo "Unknown version $version" >&2
+    exit 1
+  fi
+done
+
+echo "Going to install: $versions"
+
+for version in $versions; do
+  echo "Running: rbenv-install ${args[@]} $version"
+  rbenv-install "${args[@]}" "$version"
+done
